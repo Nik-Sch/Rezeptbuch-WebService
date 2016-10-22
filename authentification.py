@@ -1,6 +1,5 @@
 import pysodium
 import base64
-import MySQLdb
 
 nonce = str(pysodium.randombytes(pysodium.crypto_secretbox_NONCEBYTES))
 
