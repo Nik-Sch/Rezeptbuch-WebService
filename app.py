@@ -2,10 +2,12 @@
 from flask import Flask, jsonify, abort, make_response
 from flask_restful import Api, Resource, reqparse
 from flask_httpauth import HTTPBasicAuth
+from flask_compress import Compress
 from util import Database
 
 app = Flask(__name__, static_url_path="")
 api = Api(app)
+Compress(app)
 auth = HTTPBasicAuth()
 db = Database()
 
@@ -19,7 +21,7 @@ def unauthorized():
     return make_response(jsonify({'message': 'Unauthorized access'}), 403)
 
 class RecipeListAPI(Resource):
-#    decorators = [auth.login_required]
+    decorators = [auth.login_required]
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
@@ -45,7 +47,7 @@ class RecipeListAPI(Resource):
         # TODO: insert new recipe
 
 class RecipeAPI(Resource):
-#     decorators = [auth.login_required]
+    decorators = [auth.login_required]
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser()
@@ -66,9 +68,22 @@ class RecipeAPI(Resource):
         # TODO: delete row in db
         return "stuff"
 
-api.add_resource(RecipeAPI, '/api/recipes/<int:rezept_ID>', endpoint='recipe')
-api.add_resource(RecipeListAPI, '/api/recipes', endpoint='recipes')
+class RecipeSyncAPI(Resource):
+    #decorators = [auth.login_required]
+
+    def __init__(self):
+        super(RecipeSyncAPI, self).__init__()
+
+    def get(self, syncedTime):
+        result = db.getUpdateRecipe(syncedTime)
+        if result is not None:
+            return result
+        return make_response(jsonify({'error': 'Not Modified'}), 304)
+
+api.add_resource(RecipeAPI, '/recipes/<int:rezept_ID>', endpoint='recipe')
+api.add_resource(RecipeListAPI, '/recipes', endpoint='recipes')
+api.add_resource(RecipeSyncAPI, '/recipes/<string:syncedTime>', endpoint='recipesync')
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5425, host='0.0.0.0')
+    app.run(debug=False, port=5425, host='0.0.0.0')

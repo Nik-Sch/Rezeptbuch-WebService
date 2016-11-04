@@ -1,7 +1,8 @@
 import cymysql
 import base64
 import pysodium
-from  flask_restful import fields, marshal
+from flask_restful import fields, marshal
+from dateutil import parser
 
 
 class Database:
@@ -14,10 +15,18 @@ class Database:
         'beschreibung': fields.String,
         'bild_Path': fields.String,
         'datum': fields.DateTime,
-        'rezept_ID': fields.Url('recipe')
+        'rezept_ID': fields.Integer
+    }
+
+    __category_fields = {
+        '_ID': fields.Integer,
+        'name': fields.String
     }
 
     def __init__(self):
+        self.connect();
+
+    def connect(self):
         pwdFile = open('favicon', 'r')
         pwd = pwdFile.read()
         pwdFile.close()
@@ -29,14 +38,25 @@ class Database:
         return auth.getPassword(username)
 
     def getAllRecipes(self):
+        if not self.__conn.ping():
+            self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
         cur.execute("SELECT * FROM rezepte;")
         recipes = []
         for res in cur.fetchall():
             recipes.append(marshal(res, self.__recipe_fields))
-        return {'recipes': recipes}
+        cur.execute("SELECT * FROM kategorie;")
+        categories = []
+        for res in cur.fetchall():
+            categories.append(marshal(res, self.__category_fields))
+        cur.execute("SELECT NOW()")
+        res = cur.fetchone()
+        time = res['NOW()'].strftime('%Y-%m-%d %H:%M:%S')
+        return {'recipes': recipes, 'categories': categories, 'time': time}
 
     def getRecipe(self, rid):
+        if not self.__conn.ping():
+            self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
         print(rid)
         cur.execute("SELECT * FROM rezepte WHERE rezept_ID=" + str(rid));
@@ -48,16 +68,42 @@ class Database:
         else:
             return None
 
+    def getUpdateRecipe(self, lastSync):
+        if not self.__conn.ping():
+            self.connect();
+        lasttime = parser.parse(lastSync)
+        cur = self.__conn.cursor()
+        cur.execute("SELECT UPDATE_TIME FROM information_schema.tables WHERE TABLE_SCHEMA = 'rezept_verwaltung' AND TABLE_NAME = 'rezepte'")
+        res = cur.fetchone()
+        updatetime = res[0]
+        f = open("test.log", "w")
+        f.write("update: " + updatetime.strftime("%Y-%m-%d %H:%M"))
+        f.write("lastSync: " + lasttime.strftime("%Y-%m-%d %H:%M"))
+        f.close()
+
+        if (lasttime < updatetime):
+            return self.getAllRecipes()
+
+
 class Authentification:
     __conn = 0
 
     def __init__(self, connection):
         self.__conn = connection
 
+    def connect(self):
+        pwdFile = open('favicon', 'r')
+        pwd = pwdFile.read()
+        pwdFile.close()
+        # read is probably also reading the eof or something, so just use 10 chars
+        self.__conn = cymysql.connect(host='localhost', user='rezepte', passwd=pwd[:10], db='rezept_verwaltung', charset='utf8')
+
     def __encrypt(self, pwd, nonce, key):
         return base64.b64encode(pysodium.crypto_secretbox(pwd.encode(), nonce, key))
 
     def getPassword(self, username):
+        if not self.__conn.ping():
+            self.connect();
         cur = self.__conn.cursor()
         cur.execute("SELECT user, encrypted FROM user;")
         for res in cur.fetchall():
@@ -68,4 +114,4 @@ class Authentification:
                 decoded = base64.b64decode(res[1])
                 nonce = decoded[:pysodium.crypto_secretbox_NONCEBYTES]
                 ciph = decoded[pysodium.crypto_secretbox_NONCEBYTES:]
-                return pysodium.crypto_secretbox_open(ciph, nonce, key)
+                return pysodium.crypto_secretbox_open(ciph, nonce, key).decode()
