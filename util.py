@@ -38,7 +38,7 @@ class Database:
         return auth.getPassword(username)
 
     def getAllRecipes(self):
-        if not self.__conn.ping():
+        if not self.__conn._is_connect():
             self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
         cur.execute("SELECT * FROM rezepte;")
@@ -55,7 +55,7 @@ class Database:
         return {'recipes': recipes, 'categories': categories, 'time': time}
 
     def getRecipe(self, rid):
-        if not self.__conn.ping():
+        if not self.__conn._is_connect():
             self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
         print(rid)
@@ -69,7 +69,7 @@ class Database:
             return None
 
     def getUpdateRecipe(self, lastSync):
-        if not self.__conn.ping():
+        if not self.__conn._is_connect():
             self.connect();
         lasttime = parser.parse(lastSync)
         cur = self.__conn.cursor()
@@ -84,6 +84,34 @@ class Database:
         if (lasttime < updatetime):
             return self.getAllRecipes()
 
+    def insertRecipe(self, title, category, ingredients, description):
+        if not self.__conn._is_connect():
+            self.connect();
+        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"\");");
+        cur.execute("SELECT LAST_INSERT_ID() as _ID")
+        _id = cur.fetchone()['_ID']
+        cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id));
+        res = cur.fetchone()
+        return marshal(res, self.__recipe_fields)
+
+    def getAllCategories(self):
+        if not self.__conn._is_connect():
+            self.connect();
+        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        cur.execute("SELECT * FROM kategorie;")
+        categories = []
+        for res in cur.fetchall():
+            categories.append(marshal(res, self.__category_fields))
+        return {'categories' : categories}
+
+    def insertCategory(self, name):
+        if not self.__conn._is_connect():
+            self.connect();
+        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        cur.execute("INSERT INTO kategorie(name) VALUES (\"" + name + "\");");
+        cur.execute("SELECT LAST_INSERT_ID() as _ID")
+        return {'id' : cur.fetchone()['_ID']}
 
 class Authentification:
     __conn = 0
@@ -102,7 +130,7 @@ class Authentification:
         return base64.b64encode(pysodium.crypto_secretbox(pwd.encode(), nonce, key))
 
     def getPassword(self, username):
-        if not self.__conn.ping():
+        if not self.__conn._is_connect():
             self.connect();
         cur = self.__conn.cursor()
         cur.execute("SELECT user, encrypted FROM user;")

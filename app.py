@@ -1,5 +1,6 @@
 #!flask/bin/python
-from flask import Flask, jsonify, abort, make_response
+import os
+from flask import Flask, request, jsonify, abort, make_response
 from flask_restful import Api, Resource, reqparse
 from flask_httpauth import HTTPBasicAuth
 from flask_compress import Compress
@@ -28,7 +29,7 @@ class RecipeListAPI(Resource):
         self.reqparse.add_argument('titel', type=str, required=True,
                                     help='No title provided',
                                     location='json')
-        self.reqparse.add_argument('kategorie', type=str, required=True,
+        self.reqparse.add_argument('kategorie', type=int, required=True,
                                     help='No category provided',
                                     location='json')
         self.reqparse.add_argument('zutaten', type=str, required=True,
@@ -44,7 +45,10 @@ class RecipeListAPI(Resource):
 
     def post(self):
         args = self.reqparse.parse_args()
-        # TODO: insert new recipe
+        result = db.insertRecipe(args['titel'], args['kategorie'], args['zutaten'], args['beschreibung'])
+        if result is not None:
+            return result
+        return make_response(jsonify({'error': 'an error occured'}), 501)
 
 class RecipeAPI(Resource):
     decorators = [auth.login_required]
@@ -80,10 +84,39 @@ class RecipeSyncAPI(Resource):
             return result
         return make_response(jsonify({'error': 'Not Modified'}), 304)
 
+class CategoryListAPI(Resource):
+    decorators = [auth.login_required]
+
+    def __init__(self):
+        self.reqparse = reqparse.RequestParser()
+        self.reqparse.add_argument('name', type=str, required=True,
+                                    help='No title provided',
+                                    location='json')
+        super(CategoryListAPI, self).__init__()
+
+    def get(self):
+        return db.getAllCategories()
+
+    def post(self):
+        args = self.reqparse.parse_args()
+        result = db.insertCategory(args['name'])
+        if result is not None:
+            return result
+        return make_response(jsonify({'error': 'an error occured'}), 501)
+
 api.add_resource(RecipeAPI, '/recipes/<int:rezept_ID>', endpoint='recipe')
 api.add_resource(RecipeListAPI, '/recipes', endpoint='recipes')
+api.add_resource(CategoryListAPI, '/categories', endpoint='categories')
 api.add_resource(RecipeSyncAPI, '/recipes/<string:syncedTime>', endpoint='recipesync')
 
+# uploading images is not object-oriented because why not...
+@app.route('/recipe-images', methods=['GET', 'POST'])
+def upload_image():
+    if request.method == 'POST':
+        image = request.files['file']
+        f_name =  '~http/Rezeptbuch/imageas/' + image.filename
+        image.save(os.path.join(app.config['UPLOAD_FOLDER'], f_name))
+        return make_response(jsonify({'file': image.filename}), 200)
 
 if __name__ == '__main__':
     app.run(debug=False, port=5425, host='0.0.0.0')
