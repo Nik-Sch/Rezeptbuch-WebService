@@ -84,11 +84,11 @@ class Database:
         if (lasttime < updatetime):
             return self.getAllRecipes()
 
-    def insertRecipe(self, title, category, ingredients, description):
+    def insertRecipe(self, title, category, ingredients, description, bild):
         if not self.__conn._is_connect():
             self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
-        cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"\");");
+        cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"images/" + bild + "\");");
         cur.execute("SELECT LAST_INSERT_ID() as _ID")
         _id = cur.fetchone()['_ID']
         cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id));
