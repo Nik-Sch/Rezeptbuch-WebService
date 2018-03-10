@@ -116,12 +116,15 @@ class Database:
             self.connect();
         cur = self.__conn.cursor(cymysql.cursors.DictCursor)
         cur.execute("SELECT bild_Path FROM rezepte WHERE rezept_ID = " + str(_id))
-        img = cur.fetchone()["bild_Path"]
-        if (img is not None):
-            try:
-                os.remove("~http/Rezeptbuch/" + img)
-            except FileNotFoundError:
-                print("FNF")
+        try:
+            img = cur.fetchone()["bild_Path"]
+            if (img is not None):
+                try:
+                    os.remove("~http/Rezeptbuch/" + img)
+                except FileNotFoundError:
+                    print("FNF")
+        except:
+            print("caught image exception")
         cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
         cur.execute("DELETE FROM rezepte WHERE rezept_ID = " + str(_id))
 
