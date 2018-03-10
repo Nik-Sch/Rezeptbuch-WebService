@@ -71,8 +71,8 @@ class RecipeAPI(Resource):
         return "stuff"
 
     def delete(self, rezept_ID):
-        # TODO: delete row in db
-        return "stuff"
+        db.deleteRecipe(rezept_ID)
+        return make_response("", 204)
 
 class RecipeSyncAPI(Resource):
     #decorators = [auth.login_required]
@@ -84,7 +84,9 @@ class RecipeSyncAPI(Resource):
         result = db.getUpdateRecipe(syncedTime)
         if result is not None:
             return result
-        return make_response(jsonify({'error': 'Not Modified'}), 304)
+
+        # returning 418 (teapot) because volley android client has problems with redirections (304)
+        return make_response(jsonify({'error': 'Not Modified'}), 418)
 
 class CategoryListAPI(Resource):
     decorators = [auth.login_required]

@@ -1,6 +1,7 @@
 import cymysql
 import base64
 import pysodium
+import os
 from flask_restful import fields, marshal
 from dateutil import parser
 
@@ -94,9 +95,36 @@ class Database:
             cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"\");")
         cur.execute("SELECT LAST_INSERT_ID() as _ID")
         _id = cur.fetchone()['_ID']
+        self.updateSearchIndex(_id)
         cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id));
         res = cur.fetchone()
         return marshal(res, self.__recipe_fields)
+
+    def updateSearchIndex(self, _id):
+        if not self.__conn._is_connect():
+            self.connect();
+        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
+        cur.execute("SELECT rezept_ID, titel, kategorie.name AS kategorie, zutaten FROM rezepte INNER JOIN kategorie ON kategorie._ID = rezepte.kategorie WHERE rezept_ID = " + str(_id))
+        res = cur.fetchone()
+        keys = res["titel"].split() + res["kategorie"].split() + res["zutaten"].split("<br>")
+        for key in keys:
+            cur.execute("INSERT INTO such_Index (begriff, rezept_ID) VALUES (\"" + key + "\", \"" + str(_id) + "\")")
+
+    def deleteRecipe(self, _id):
+        if not self.__conn._is_connect():
+            self.connect();
+        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        cur.execute("SELECT bild_Path FROM rezepte WHERE rezept_ID = " + str(_id))
+        img = cur.fetchone()["bild_Path"]
+        if (img is not None):
+            try:
+                os.remove("~http/Rezeptbuch/" + img)
+            except FileNotFoundError:
+                print("FNF")
+        cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
+        cur.execute("DELETE FROM rezepte WHERE rezept_ID = " + str(_id))
+
 
     def getAllCategories(self):
         if not self.__conn._is_connect():
