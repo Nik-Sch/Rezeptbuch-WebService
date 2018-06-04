@@ -1,10 +1,12 @@
 #!flask/bin/python
 import os
-from flask import Flask, request, jsonify, abort, make_response
+from flask import Flask, request, jsonify, abort, make_response, redirect, url_for
 from flask_restful import Api, Resource, reqparse
 from flask_httpauth import HTTPBasicAuth
 from flask_compress import Compress
 from util import Database
+from werkzeug.utils import secure_filename
+from PIL import Image
 
 app = Flask(__name__, static_url_path="")
 api = Api(app)
@@ -107,6 +109,39 @@ class CategoryListAPI(Resource):
         if result is not None:
             return result
         return make_response(jsonify({'error': 'an error occured'}), 501)
+
+# uploading image
+IMAGE_FOLDER = '/srv/http/Rezeptbuch/images/'
+
+@app.route('/images', methods=['GET', 'POST'])
+def upload_file():
+    # show http form if no post
+    if request.method == 'POST':
+        if 'image' not in request.files:
+            return make_response(jsonify({'error': 'No image'}), 400)
+        file = request.files['image']
+        if file.filename == '':
+            return make_response(jsonify({'error': 'No filename'}), 400)
+        if file:
+            filename = secure_filename(file.filename)
+            try:
+                jpg = Image.open(file)
+                jpg.save(IMAGE_FOLDER + filename, "JPEG")
+                response = jsonify()
+                response.status_code = 201
+                response.autocorrect_location_header = False
+                return response
+            except IOError:
+                return make_response(jsonify({'error': 'File isn\'t an image'}), 400)
+
+    return '''
+    <!doctype html>
+    <title>Upload image</title>
+    <form method=post enctype=multipart/form-data>
+        <input type=file name=image>
+        <input type=submit value=Upload>
+    </form>
+    '''
 
 api.add_resource(RecipeAPI, '/recipes/<int:rezept_ID>', endpoint='recipe')
 api.add_resource(RecipeListAPI, '/recipes', endpoint='recipes')

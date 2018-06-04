@@ -40,7 +40,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/home/pi/software/webservice/rezeptbuch/flask"
+VIRTUAL_ENV="/opt/webservice/rezeptbuch/flask"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

@@ -1,4 +1,4 @@
-#!/home/pi/software/webservice/rezeptbuch/flask/bin/python
+#!/opt/webservice/rezeptbuch/flask/bin/python
 
 import sys
 import getopt
