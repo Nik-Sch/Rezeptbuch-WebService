@@ -1,0 +1,11 @@
+[Unit]
+Description=Rezeptbuch web service
+Requires=network.target
+After=network.target
+
+[Service]
+ExecStart=/opt/webservice/rezeptbuch/startService.sh
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
