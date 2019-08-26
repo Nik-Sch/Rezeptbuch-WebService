@@ -70,8 +70,8 @@ class Database:
             return None
 
     def getUpdateRecipe(self, lastSync):
-        if not self.__conn._is_connect():
-            self.connect();
+        # if not self.__conn._is_connect():
+        self.connect();
         lasttime = parser.parse(lastSync)
         cur = self.__conn.cursor()
         cur.execute("SELECT UPDATE_TIME FROM information_schema.tables WHERE TABLE_SCHEMA = 'rezept_verwaltung' AND TABLE_NAME = 'rezepte'")

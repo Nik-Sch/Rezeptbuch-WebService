@@ -1,4 +1,3 @@
-#!flask/bin/python
 import os
 from flask import Flask, request, jsonify, abort, make_response, redirect, url_for
 from flask_restful import Api, Resource, reqparse
@@ -48,6 +47,8 @@ class RecipeListAPI(Resource):
         return db.getAllRecipes()
 
     def post(self):
+        if (auth.username() == 'gast'):
+            return make_response(jsonify({'error': 405}), 405);
         args = self.reqparse.parse_args()
         result = db.insertRecipe(args['titel'], args['kategorie'], args['zutaten'], args['beschreibung'], args['bild'])
         if result is not None:
@@ -69,15 +70,19 @@ class RecipeAPI(Resource):
         return make_response(jsonify({'error': 'Not found'}), 404)
 
     def put(self, rezept_ID):
+        if (auth.username() == 'gast'):
+            return make_response(jsonify({'error': 405}), 405);
         # TODO: update data in db
         return "stuff"
 
     def delete(self, rezept_ID):
+        if (auth.username() == 'gast'):
+            return make_response(jsonify({'error': 405}), 405);
         db.deleteRecipe(rezept_ID)
         return make_response("", 204)
 
 class RecipeSyncAPI(Resource):
-    #decorators = [auth.login_required]
+    decorators = [auth.login_required]
 
     def __init__(self):
         super(RecipeSyncAPI, self).__init__()
@@ -104,6 +109,8 @@ class CategoryListAPI(Resource):
         return db.getAllCategories()
 
     def post(self):
+        if (auth.username() == 'gast'):
+            return make_response(jsonify({'error': 405}), 405);
         args = self.reqparse.parse_args()
         result = db.insertCategory(args['name'])
         if result is not None:
@@ -114,7 +121,10 @@ class CategoryListAPI(Resource):
 IMAGE_FOLDER = '/srv/http/Rezeptbuch/images/'
 
 @app.route('/images', methods=['GET', 'POST'])
+@auth.login_required
 def upload_file():
+    if (auth.username() == 'gast'):
+        return make_response(jsonify({'error': 405}), 405);
     # show http form if no post
     if request.method == 'POST':
         if 'image' not in request.files:
@@ -142,6 +152,21 @@ def upload_file():
         <input type=submit value=Upload>
     </form>
     '''
+
+@auth.login_required
+@app.route('/images/<name>', methods=['DELETE'])
+def delete_image(name):
+    if (auth.username() == 'gast'):
+        return make_response(jsonify({'error': 405}), 405);
+    if request.method == 'DELETE':
+        try:
+            os.remove(IMAGE_FOLDER + secure_filename(name))
+        except:
+            return make_response(jsonify({'error': 'no such image'}), 404)
+        response = jsonify()
+        response.status_code = 204
+        return response
+    return make_response(jsonify({'error': 'only delete'}), 403)
 
 api.add_resource(RecipeAPI, '/recipes/<int:rezept_ID>', endpoint='recipe')
 api.add_resource(RecipeListAPI, '/recipes', endpoint='recipes')
