@@ -1,4 +1,4 @@
-import cymysql
+import pymysql
 import base64
 import pysodium
 import os
@@ -32,16 +32,19 @@ class Database:
         pwd = pwdFile.read()
         pwdFile.close()
         # read is probably also reading the eof or something, so just use 10 chars
-        self.__conn = cymysql.connect(host='localhost', user='rezepte', passwd=pwd[:10], db='rezept_verwaltung', charset='utf8')
+        self.__conn = pymysql.connect(host='localhost',
+                                      user='rezepte',
+                                      passwd=pwd[:10],
+                                      db='rezept_verwaltung',
+                                      charset='utf8')
 
-    def getPassword(self, username):
-        auth = Authentification(self.__conn)
-        return auth.getPassword(username)
+    def ensureConnection(self):
+        if self.__conn == 0 or not self.__conn.open:
+            self.connect()
 
     def getAllRecipes(self):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         cur.execute("SELECT * FROM rezepte;")
         recipes = []
         for res in cur.fetchall():
@@ -56,9 +59,8 @@ class Database:
         return {'recipes': recipes, 'categories': categories, 'time': time}
 
     def getRecipe(self, rid):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         print(rid)
         cur.execute("SELECT * FROM rezepte WHERE rezept_ID=" + str(rid));
         recipe = 0
@@ -70,8 +72,7 @@ class Database:
             return None
 
     def getUpdateRecipe(self, lastSync):
-        # if not self.__conn._is_connect():
-        self.connect();
+        self.ensureConnection()
         lasttime = parser.parse(lastSync)
         cur = self.__conn.cursor()
         cur.execute("SELECT UPDATE_TIME FROM information_schema.tables WHERE TABLE_SCHEMA = 'rezept_verwaltung' AND TABLE_NAME = 'rezepte'")
@@ -86,9 +87,8 @@ class Database:
             return self.getAllRecipes()
 
     def insertRecipe(self, title, category, ingredients, description, bild):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         if bild is not None:
             cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"images/" + bild + "\");")
         else:
@@ -101,9 +101,8 @@ class Database:
         return marshal(res, self.__recipe_fields)
 
     def updateSearchIndex(self, _id):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
         cur.execute("SELECT rezept_ID, titel, kategorie.name AS kategorie, zutaten FROM rezepte INNER JOIN kategorie ON kategorie._ID = rezepte.kategorie WHERE rezept_ID = " + str(_id))
         res = cur.fetchone()
@@ -112,9 +111,8 @@ class Database:
             cur.execute("INSERT INTO such_Index (begriff, rezept_ID) VALUES (\"" + key + "\", \"" + str(_id) + "\")")
 
     def deleteRecipe(self, _id):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         cur.execute("SELECT bild_Path FROM rezepte WHERE rezept_ID = " + str(_id))
         try:
             img = cur.fetchone()["bild_Path"]
@@ -130,9 +128,8 @@ class Database:
 
 
     def getAllCategories(self):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         cur.execute("SELECT * FROM kategorie;")
         categories = []
         for res in cur.fetchall():
@@ -140,32 +137,19 @@ class Database:
         return {'categories' : categories}
 
     def insertCategory(self, name):
-        if not self.__conn._is_connect():
-            self.connect();
-        cur = self.__conn.cursor(cymysql.cursors.DictCursor)
+        self.ensureConnection()
+        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
         cur.execute("INSERT INTO kategorie(name) VALUES (\"" + name + "\");");
         cur.execute("SELECT LAST_INSERT_ID() as _ID")
         return {'id' : cur.fetchone()['_ID']}
 
-class Authentification:
-    __conn = 0
 
-    def __init__(self, connection):
-        self.__conn = connection
-
-    def connect(self):
-        pwdFile = open('favicon', 'r')
-        pwd = pwdFile.read()
-        pwdFile.close()
-        # read is probably also reading the eof or something, so just use 10 chars
-        self.__conn = cymysql.connect(host='localhost', user='rezepte', passwd=pwd[:10], db='rezept_verwaltung', charset='utf8')
-
+# authentification
     def __encrypt(self, pwd, nonce, key):
         return base64.b64encode(pysodium.crypto_secretbox(pwd.encode(), nonce, key))
 
     def getPassword(self, username):
-        if not self.__conn._is_connect():
-            self.connect();
+        self.ensureConnection()
         cur = self.__conn.cursor()
         cur.execute("SELECT user, encrypted FROM user;")
         for res in cur.fetchall():
