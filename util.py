@@ -41,6 +41,12 @@ class Database:
     def ensureConnection(self):
         if self.__conn == 0 or not self.__conn.open:
             self.connect()
+        try:
+            cur = self.__conn.cursor(pymysql.cursors.DictCursor)
+            cur.execute("SELECT NOW()")
+            res = cur.fetchone()
+        except:
+            self.connect()
 
     def getAllRecipes(self):
         self.ensureConnection()
