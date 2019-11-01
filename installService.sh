@@ -1,5 +1,5 @@
 #/bin/bash
-ln -s $(pwd)/rezeptbuch.service /home/$(whoami)/.config/systemd/user/rezeptbuch.service
-systemctl --user daemon-reload
-systemctl --user enable rezeptbuch
-systemctl --user start rezeptbuch
+sudo ln -s $(pwd)/rezeptbuch.service /etc/systemd/system/rezeptbuch.service
+sudo systemctl daemon-reload
+sudo systemctl enable rezeptbuch
+sudo systemctl start rezeptbuch
