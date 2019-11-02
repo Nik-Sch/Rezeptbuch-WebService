@@ -12,7 +12,7 @@ itsdangerous==0.24
 Jinja2==2.10.1
 MarkupSafe==1.0
 monotonic==1.5
-Pillow==5.2.0
+Pillow==6.2.0
 PyMySQL==0.9.3
 pysodium==0.7.0.post0
 python-dateutil==2.7.3
