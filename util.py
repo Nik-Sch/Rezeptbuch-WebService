@@ -25,17 +25,13 @@ class Database:
     }
 
     def __init__(self):
-        self.connect();
+        self.connect()
 
     def connect(self):
-        pwdFile = open('favicon', 'r')
-        pwd = pwdFile.read()
-        pwdFile.close()
-        # read is probably also reading the eof or something, so just use 10 chars
-        self.__conn = pymysql.connect(host='localhost',
-                                      user='rezepte',
-                                      passwd=pwd[:10],
-                                      db='rezept_verwaltung',
+        self.__conn = pymysql.connect(host=os.environ['MYSQL_HOST'],
+                                      user=os.environ['MYSQL_USER'],
+                                      passwd=os.environ['MYSQL_PASSWORD'],
+                                      db=os.environ['MYSQL_DATABASE'],
                                       charset='utf8')
 
     def ensureConnection(self):

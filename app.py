@@ -174,4 +174,4 @@ api.add_resource(CategoryListAPI, '/categories', endpoint='categories')
 api.add_resource(RecipeSyncAPI, '/recipes/<string:syncedTime>', endpoint='recipesync')
 
 if __name__ == '__main__':
-    app.run(debug=False, port=5425, host='0.0.0.0')
+    app.run(debug=True, port=5425, host='0.0.0.0')
