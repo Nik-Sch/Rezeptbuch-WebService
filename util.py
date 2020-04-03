@@ -91,10 +91,7 @@ class Database:
     def insertRecipe(self, title, category, ingredients, description, bild):
         self.ensureConnection()
         cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        if bild is not None:
-            cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"images/" + bild + "\");")
-        else:
-            cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"\");")
+        cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"" + bild + "\");")
         cur.execute("SELECT LAST_INSERT_ID() as _ID")
         _id = cur.fetchone()['_ID']
         self.updateSearchIndex(_id)

@@ -5,6 +5,8 @@ from flask_httpauth import HTTPBasicAuth
 from flask_compress import Compress
 from util import Database
 from werkzeug.utils import secure_filename
+from requests.auth import HTTPDigestAuth
+import requests
 from PIL import Image
 
 app = Flask(__name__, static_url_path="")
@@ -71,14 +73,17 @@ class RecipeAPI(Resource):
 
     def put(self, rezept_ID):
         if (auth.username() == 'gast'):
-            return make_response(jsonify({'error': 405}), 405);
+            return make_response(jsonify({'error': 405}), 405)
         # TODO: update data in db
         return "stuff"
 
     def delete(self, rezept_ID):
         if (auth.username() == 'gast'):
-            return make_response(jsonify({'error': 405}), 405);
-        db.deleteRecipe(rezept_ID)
+            return make_response(jsonify({'error': 405}), 405)
+        url = 'http://web/delete_recipe.php?recipe_id=' + str(rezept_ID)
+        requests.get(url, auth=HTTPDigestAuth(
+            auth.username(), get_password(auth.username())))
+        # db.deleteRecipe(rezept_ID)
         return make_response("", 204)
 
 class RecipeSyncAPI(Resource):
@@ -117,56 +122,56 @@ class CategoryListAPI(Resource):
             return result
         return make_response(jsonify({'error': 'an error occured'}), 501)
 
-# uploading image
-IMAGE_FOLDER = '/srv/http/Rezeptbuch/images/'
+# # uploading image
+# IMAGE_FOLDER = '/srv/http/Rezeptbuch/images/'
 
-@app.route('/images', methods=['GET', 'POST'])
-@auth.login_required
-def upload_file():
-    if (auth.username() == 'gast'):
-        return make_response(jsonify({'error': 405}), 405);
-    # show http form if no post
-    if request.method == 'POST':
-        if 'image' not in request.files:
-            return make_response(jsonify({'error': 'No image'}), 400)
-        file = request.files['image']
-        if file.filename == '':
-            return make_response(jsonify({'error': 'No filename'}), 400)
-        if file:
-            filename = secure_filename(file.filename)
-            try:
-                jpg = Image.open(file)
-                jpg.save(IMAGE_FOLDER + filename, "JPEG")
-                response = jsonify()
-                response.status_code = 201
-                response.autocorrect_location_header = False
-                return response
-            except IOError:
-                return make_response(jsonify({'error': 'File isn\'t an image'}), 400)
+# @app.route('/images', methods=['GET', 'POST'])
+# @auth.login_required
+# def upload_file():
+#     if (auth.username() == 'gast'):
+#         return make_response(jsonify({'error': 405}), 405);
+#     # show http form if no post
+#     if request.method == 'POST':
+#         if 'image' not in request.files:
+#             return make_response(jsonify({'error': 'No image'}), 400)
+#         file = request.files['image']
+#         if file.filename == '':
+#             return make_response(jsonify({'error': 'No filename'}), 400)
+#         if file:
+#             filename = secure_filename(file.filename)
+#             try:
+#                 jpg = Image.open(file)
+#                 jpg.save(IMAGE_FOLDER + filename, "JPEG")
+#                 response = jsonify()
+#                 response.status_code = 201
+#                 response.autocorrect_location_header = False
+#                 return response
+#             except IOError:
+#                 return make_response(jsonify({'error': 'File isn\'t an image'}), 400)
 
-    return '''
-    <!doctype html>
-    <title>Upload image</title>
-    <form method=post enctype=multipart/form-data>
-        <input type=file name=image>
-        <input type=submit value=Upload>
-    </form>
-    '''
+#     return '''
+#     <!doctype html>
+#     <title>Upload image</title>
+#     <form method=post enctype=multipart/form-data>
+#         <input type=file name=image>
+#         <input type=submit value=Upload>
+#     </form>
+#     '''
 
-@auth.login_required
-@app.route('/images/<name>', methods=['DELETE'])
-def delete_image(name):
-    if (auth.username() == 'gast'):
-        return make_response(jsonify({'error': 405}), 405);
-    if request.method == 'DELETE':
-        try:
-            os.remove(IMAGE_FOLDER + secure_filename(name))
-        except:
-            return make_response(jsonify({'error': 'no such image'}), 404)
-        response = jsonify()
-        response.status_code = 204
-        return response
-    return make_response(jsonify({'error': 'only delete'}), 403)
+# @auth.login_required
+# @app.route('/images/<name>', methods=['DELETE'])
+# def delete_image(name):
+#     if (auth.username() == 'gast'):
+#         return make_response(jsonify({'error': 405}), 405);
+#     if request.method == 'DELETE':
+#         try:
+#             os.remove(IMAGE_FOLDER + secure_filename(name))
+#         except:
+#             return make_response(jsonify({'error': 'no such image'}), 404)
+#         response = jsonify()
+#         response.status_code = 204
+#         return response
+#     return make_response(jsonify({'error': 'only delete'}), 403)
 
 api.add_resource(RecipeAPI, '/recipes/<int:rezept_ID>', endpoint='recipe')
 api.add_resource(RecipeListAPI, '/recipes', endpoint='recipes')
