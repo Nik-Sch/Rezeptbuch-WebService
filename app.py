@@ -46,13 +46,13 @@ class RecipeListAPI(Resource):
         super(RecipeListAPI, self).__init__()
 
     def get(self):
-        return db.getAllRecipes()
+        return db.getAllRecipes(auth.username())
 
     def post(self):
-        if (auth.username() == 'gast'):
-            return make_response(jsonify({'error': 405}), 405);
+        if not db.hasWriteAccess(auth.username()):
+            return make_response(jsonify({'error': 405}), 405)
         args = self.reqparse.parse_args()
-        result = db.insertRecipe(args['titel'], args['kategorie'], args['zutaten'], args['beschreibung'], args['bild'])
+        result = db.insertRecipe(auth.username(), args['titel'], args['kategorie'], args['zutaten'], args['beschreibung'], args['bild'])
         if result is not None:
             return result
         return make_response(jsonify({'error': 'an error occured'}), 501)
@@ -66,21 +66,21 @@ class RecipeAPI(Resource):
         super(RecipeAPI, self).__init__()
 
     def get(self, rezept_ID):
-        result = db.getRecipe(rezept_ID)
+        result = db.getRecipe(auth.username(), rezept_ID)
         if result is not None:
             return result
         return make_response(jsonify({'error': 'Not found'}), 404)
 
     def put(self, rezept_ID):
-        if (auth.username() == 'gast'):
+        if not db.hasWriteAccess(auth.username()):
             return make_response(jsonify({'error': 405}), 405)
         # TODO: update data in db
         return "stuff"
 
     def delete(self, rezept_ID):
-        if (auth.username() == 'gast'):
+        if not db.hasWriteAccess(auth.username()):
             return make_response(jsonify({'error': 405}), 405)
-        url = 'http://web/delete_recipe.php?recipe_id=' + str(rezept_ID)
+        url = 'http://rezeptbuch/delete_recipe.php?recipe_id=' + str(rezept_ID)
         requests.get(url, auth=HTTPDigestAuth(
             auth.username(), get_password(auth.username())))
         # db.deleteRecipe(rezept_ID)
@@ -93,7 +93,7 @@ class RecipeSyncAPI(Resource):
         super(RecipeSyncAPI, self).__init__()
 
     def get(self, syncedTime):
-        result = db.getUpdateRecipe(syncedTime)
+        result = db.getUpdateRecipe(auth.username(),syncedTime)
         if result is not None:
             return result
 
@@ -111,13 +111,13 @@ class CategoryListAPI(Resource):
         super(CategoryListAPI, self).__init__()
 
     def get(self):
-        return db.getAllCategories()
+        return db.getAllCategories(auth.username())
 
     def post(self):
-        if (auth.username() == 'gast'):
-            return make_response(jsonify({'error': 405}), 405);
+        if not db.hasWriteAccess(auth.username()):
+            return make_response(jsonify({'error': 405}), 405)
         args = self.reqparse.parse_args()
-        result = db.insertCategory(args['name'])
+        result = db.insertCategory(auth.username(), args['name'])
         if result is not None:
             return result
         return make_response(jsonify({'error': 'an error occured'}), 501)
@@ -128,8 +128,8 @@ class CategoryListAPI(Resource):
 # @app.route('/images', methods=['GET', 'POST'])
 # @auth.login_required
 # def upload_file():
-#     if (auth.username() == 'gast'):
-#         return make_response(jsonify({'error': 405}), 405);
+        # if not db.hasWriteAccess(auth.username()):
+        #     return make_response(jsonify({'error': 405}), 405)
 #     # show http form if no post
 #     if request.method == 'POST':
 #         if 'image' not in request.files:
@@ -161,8 +161,8 @@ class CategoryListAPI(Resource):
 # @auth.login_required
 # @app.route('/images/<name>', methods=['DELETE'])
 # def delete_image(name):
-#     if (auth.username() == 'gast'):
-#         return make_response(jsonify({'error': 405}), 405);
+        # if not db.hasWriteAccess(auth.username()):
+        #     return make_response(jsonify({'error': 405}), 405)
 #     if request.method == 'DELETE':
 #         try:
 #             os.remove(IMAGE_FOLDER + secure_filename(name))

@@ -7,7 +7,6 @@ from dateutil import parser
 
 
 class Database:
-    __conn = 0
 
     __recipe_fields = {
         'titel': fields.String,
@@ -27,136 +26,187 @@ class Database:
     def __init__(self):
         self.connect()
 
-    def connect(self):
-        self.__conn = pymysql.connect(host=os.environ['MYSQL_HOST'],
-                                      user=os.environ['MYSQL_USER'],
-                                      passwd=os.environ['MYSQL_PASSWORD'],
-                                      db=os.environ['MYSQL_DATABASE'],
-                                      charset='utf8')
+    def connect(self, username = None):
+        conn = pymysql.connect(host=os.environ['MYSQL_HOST'],
+                               user=os.environ['MYSQL_USER'],
+                               passwd=os.environ['MYSQL_PASSWORD'],
+                               db=os.environ['MYSQL_DATABASE'],
+                               charset='utf8mb4',
+                               cursorclass=pymysql.cursors.DictCursor)
+        if username != None:
+            cur = conn.cursor()
+            cur.execute("SELECT _ID, read_only, user FROM user;")
+            userId = -1
+            for res in cur.fetchall():
+                if res['user'] == username:
+                    userId = res['_ID']
+                    break
+                if res['read_only'] == username:
+                    userId = res['_ID']
+                    break
+            return conn, userId
+        else:
+            return conn
 
-    def ensureConnection(self):
-        if self.__conn == 0 or not self.__conn.open:
-            self.connect()
+    def getAllRecipes(self, username):
+        conn, userId = self.connect(username)
         try:
-            cur = self.__conn.cursor(pymysql.cursors.DictCursor)
+            cur = conn.cursor()
+            cur.execute(f"SELECT * FROM rezepte WHERE user_id = {userId};")
+            recipes = []
+            for res in cur.fetchall():
+                recipes.append(marshal(res, self.__recipe_fields))
+            cur.execute(f"SELECT * FROM kategorie WHERE user_id = {userId};")
+            categories = []
+            for res in cur.fetchall():
+                categories.append(marshal(res, self.__category_fields))
             cur.execute("SELECT NOW()")
             res = cur.fetchone()
-        except:
-            self.connect()
+            time = res['NOW()'].strftime('%Y-%m-%d %H:%M:%S')
+            return {'recipes': recipes, 'categories': categories, 'time': time}
+        finally:
+            conn.close()
 
-    def getAllRecipes(self):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("SELECT * FROM rezepte;")
-        recipes = []
-        for res in cur.fetchall():
-            recipes.append(marshal(res, self.__recipe_fields))
-        cur.execute("SELECT * FROM kategorie;")
-        categories = []
-        for res in cur.fetchall():
-            categories.append(marshal(res, self.__category_fields))
-        cur.execute("SELECT NOW()")
-        res = cur.fetchone()
-        time = res['NOW()'].strftime('%Y-%m-%d %H:%M:%S')
-        return {'recipes': recipes, 'categories': categories, 'time': time}
-
-    def getRecipe(self, rid):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        print(rid)
-        cur.execute("SELECT * FROM rezepte WHERE rezept_ID=" + str(rid));
-        recipe = 0
-        for res in cur.fetchall():
-            recipe = marshal(res, self.__recipe_fields)
-        if recipe != 0:
-            return {'recipe': recipe}
-        else:
-            return None
-
-    def getUpdateRecipe(self, lastSync):
-        self.ensureConnection()
-        lasttime = parser.parse(lastSync)
-        cur = self.__conn.cursor()
-        cur.execute("SELECT UPDATE_TIME FROM information_schema.tables WHERE TABLE_SCHEMA = 'rezept_verwaltung' AND TABLE_NAME = 'rezepte'")
-        res = cur.fetchone()
-        updatetime = res[0]
-        f = open("test.log", "w")
-        f.write("update: " + updatetime.strftime("%Y-%m-%d %H:%M"))
-        f.write("lastSync: " + lasttime.strftime("%Y-%m-%d %H:%M"))
-        f.close()
-
-        if (lasttime < updatetime):
-            return self.getAllRecipes()
-
-    def insertRecipe(self, title, category, ingredients, description, bild):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path) VALUES (\"" + title + "\", " + str(category) + ", \"" + ingredients + "\", \"" + description + "\", \"" + bild + "\");")
-        cur.execute("SELECT LAST_INSERT_ID() as _ID")
-        _id = cur.fetchone()['_ID']
-        self.updateSearchIndex(_id)
-        cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id));
-        res = cur.fetchone()
-        return marshal(res, self.__recipe_fields)
-
-    def updateSearchIndex(self, _id):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
-        cur.execute("SELECT rezept_ID, titel, kategorie.name AS kategorie, zutaten FROM rezepte INNER JOIN kategorie ON kategorie._ID = rezepte.kategorie WHERE rezept_ID = " + str(_id))
-        res = cur.fetchone()
-        keys = res["titel"].split() + res["kategorie"].split() + res["zutaten"].split("<br>")
-        for key in keys:
-            cur.execute("INSERT INTO such_Index (begriff, rezept_ID) VALUES (\"" + key + "\", \"" + str(_id) + "\")")
-
-    def deleteRecipe(self, _id):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("SELECT bild_Path FROM rezepte WHERE rezept_ID = " + str(_id))
+    def getRecipe(self, username, rid):
+        conn, userId = self.connect(username)
         try:
-            img = cur.fetchone()["bild_Path"]
-            if (img is not None):
-                try:
-                    os.remove("~http/Rezeptbuch/" + img)
-                except FileNotFoundError:
-                    print("FNF")
-        except:
-            print("caught image exception")
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT * FROM rezepte WHERE rezept_ID={str(rid)} and user_id = {userId}")
+            recipe = 0
+            for res in cur.fetchall():
+                recipe = marshal(res, self.__recipe_fields)
+            if recipe != 0:
+                return {'recipe': recipe}
+            else:
+                return None
+        finally:
+            conn.close()
+
+    def getUpdateRecipe(self, username, lastSync):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            lasttime = parser.parse(lastSync)
+            cur.execute(
+                "SELECT UPDATE_TIME FROM information_schema.tables WHERE TABLE_SCHEMA = 'rezept_verwaltung' AND TABLE_NAME = 'rezepte'")
+            res = cur.fetchone()
+        finally:
+            conn.close()
+        updatetime = res['UPDATE_TIME']
+        if (lasttime < updatetime):
+            return self.getAllRecipes(username)
+
+    def insertRecipe(self, username, title, category, ingredients, description, bild):
+        conn, userId = self.connect(username)
+        try:
+            cur = conn.cursor()
+            if not bild:
+                bild = ""
+            query = f"INSERT INTO rezepte(titel, kategorie, zutaten, beschreibung, bild_Path, user_id) VALUES ('{title}', {str(category)}, '{ingredients}', '{description}', '{bild}', '{userId}');"
+            cur.execute(query)
+            # print(query)
+            cur.execute("SELECT LAST_INSERT_ID() as _ID")
+            _id = cur.fetchone()['_ID']
+            self.updateSearchIndex(cur, _id)
+            cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id))
+            res = cur.fetchone()
+            return marshal(res, self.__recipe_fields)
+        finally:
+            conn.commit()
+            conn.close()
+
+    def updateSearchIndex(self, cur, _id):
         cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
-        cur.execute("DELETE FROM rezepte WHERE rezept_ID = " + str(_id))
+        cur.execute(
+            f"SELECT rezept_ID, titel, kategorie.name AS kategorie, zutaten FROM rezepte INNER JOIN kategorie ON kategorie._ID = rezepte.kategorie WHERE rezept_ID = {str(_id)}")
+        res = cur.fetchone()
+        keys = res["titel"].split() + res["kategorie"].split() + \
+            res["zutaten"].split("<br>")
+        for key in keys:
+            cur.execute(
+                f"INSERT INTO such_Index (begriff, rezept_ID) VALUES ('{key}', '{str(_id)}')")
 
+    # def deleteRecipe(self, username, _id):
+        # TODO ?
+        # self.ensureConnection()
+        # cur = self.__conn.cursor(pymysql.cursors.DictCursor)
+        # userId = self.__userId[username]
+        # cur.execute(f"SELECT bild_Path FROM rezepte WHERE rezept_ID = {str(_id)}")
+        # try:
+        #     img = cur.fetchone()["bild_Path"]
+        #     if (img is not None):
+        #         try:
+        #             os.remove("~http/Rezeptbuch/" + img)
+        #         except FileNotFoundError:
+        #             print("FNF")
+        # except:
+        #     print("caught image exception")
+        # cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
+        # cur.execute("DELETE FROM rezepte WHERE rezept_ID = " + str(_id))
 
-    def getAllCategories(self):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("SELECT * FROM kategorie;")
-        categories = []
-        for res in cur.fetchall():
-            categories.append(marshal(res, self.__category_fields))
-        return {'categories' : categories}
+    def getAllCategories(self, username):
+        conn, userId = self.connect(username)
+        try:
+            cur = conn.cursor()
+            cur.execute(f"SELECT * FROM kategorie WHERE user_id = {userId};")
+            categories = []
+            for res in cur.fetchall():
+                categories.append(marshal(res, self.__category_fields))
+            return {'categories': categories}
+        finally:
+            conn.close()
 
-    def insertCategory(self, name):
-        self.ensureConnection()
-        cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        cur.execute("INSERT INTO kategorie(name) VALUES (\"" + name + "\");");
-        cur.execute("SELECT LAST_INSERT_ID() as _ID")
-        return {'id' : cur.fetchone()['_ID']}
+    def insertCategory(self, username, name):
+        conn, userId = self.connect(username)
+        try:
+            cur = conn.cursor()
+            query = f"INSERT INTO kategorie(name, user_id) VALUES ('{name}', {userId});"
+            print(query)
+            cur.execute(query)
+            cur.execute("SELECT LAST_INSERT_ID() as _ID")
+            return {'id': cur.fetchone()['_ID']}
+        finally:
+            conn.commit()
+            conn.close()
 
 
 # authentification
+
     def __encrypt(self, pwd, nonce, key):
         return base64.b64encode(pysodium.crypto_secretbox(pwd.encode(), nonce, key))
 
+    def __decrypt(self, encrypted):
+        keyFile = open('logo', 'r')
+        key = base64.b64decode(keyFile.read())
+        keyFile.close()
+        decoded = base64.b64decode(encrypted)
+        nonce = decoded[:pysodium.crypto_secretbox_NONCEBYTES]
+        ciph = decoded[pysodium.crypto_secretbox_NONCEBYTES:]
+        return pysodium.crypto_secretbox_open(ciph, nonce, key).decode()
+
     def getPassword(self, username):
-        self.ensureConnection()
-        cur = self.__conn.cursor()
-        cur.execute("SELECT user, encrypted FROM user;")
-        for res in cur.fetchall():
-            if res[0] == username:
-                keyFile = open('logo', 'r')
-                key = base64.b64decode(keyFile.read())
-                keyFile.close()
-                decoded = base64.b64decode(res[1])
-                nonce = decoded[:pysodium.crypto_secretbox_NONCEBYTES]
-                ciph = decoded[pysodium.crypto_secretbox_NONCEBYTES:]
-                return pysodium.crypto_secretbox_open(ciph, nonce, key).decode()
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT user, encrypted, read_only, read_only_encrypted FROM user;")
+            for res in cur.fetchall():
+                if res['user'] == username:
+                    return self.__decrypt(res['encrypted'])
+                if res['read_only'] == username:
+                    return self.__decrypt(res['read_only_encrypted'])
+        finally:
+            conn.close()
+
+    def hasWriteAccess(self, username):
+        conn = self.connect()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT user FROM user;")
+            for res in cur.fetchall():
+                if res['user'] == username:
+                    return True
+            return False
+        finally:
+            conn.close()
