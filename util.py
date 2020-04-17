@@ -10,7 +10,7 @@ class Database:
 
     __recipe_fields = {
         'titel': fields.String,
-        'kategorie': fields.String,
+        'kategorie': fields.Integer,
         'zutaten': fields.String,
         'beschreibung': fields.String,
         'bild_Path': fields.String,
@@ -112,6 +112,18 @@ class Database:
             cur.execute("SELECT * FROM rezepte WHERE rezept_ID = " + str(_id))
             res = cur.fetchone()
             return marshal(res, self.__recipe_fields)
+        finally:
+            conn.commit()
+            conn.close()
+
+    def updateRecipe(self, id, username, title, category, ingredients, description, bild):
+        conn, userId = self.connect(username)
+        try:
+            cur = conn.cursor()
+            if not bild:
+                bild = ""
+            query = f"UPDATE `rezepte` SET `titel` = '{title}', `kategorie` = '{str(category)}', `zutaten` = '{ingredients}', `beschreibung` = '{description}', `bild_Path` = '{bild}', `user_id` = '{userId}'  WHERE `rezepte`.`rezept_ID` = {str(id)}"
+            return cur.execute(query) == 1
         finally:
             conn.commit()
             conn.close()
