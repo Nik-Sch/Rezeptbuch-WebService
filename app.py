@@ -106,10 +106,9 @@ class RecipeAPI(Resource):
     def delete(self, rezept_ID):
         if not db.hasWriteAccess(auth.username()):
             return make_response(jsonify({'error': 405}), 405)
-        url = 'http://rezeptbuch/delete_recipe.php?recipe_id=' + str(rezept_ID)
-        requests.get(url, auth=HTTPDigestAuth(
-            auth.username(), get_password(auth.username())))
-        # db.deleteRecipe(rezept_ID)
+        result = db.deleteRecipe(auth.username(), rezept_ID, IMAGE_FOLDER)
+        if result == 0:
+            return make_response("", 404)
         return make_response("", 204)
 
 

@@ -121,8 +121,10 @@ class Database:
         try:
             cur = conn.cursor()
             if not bild:
-                bild = ""
-            query = f"UPDATE `rezepte` SET `titel` = '{title}', `kategorie` = '{str(category)}', `zutaten` = '{ingredients}', `beschreibung` = '{description}', `bild_Path` = '{bild}', `user_id` = '{userId}'  WHERE `rezepte`.`rezept_ID` = {str(id)}"
+                query = f"UPDATE `rezepte` SET `titel` = '{title}', `kategorie` = '{str(category)}', `zutaten` = '{ingredients}', `beschreibung` = '{description}' WHERE `rezepte`.`rezept_ID` = {str(id)} AND `rezepte`.`user_id` = '{userId}'"
+            else:
+                query = f"UPDATE `rezepte` SET `titel` = '{title}', `kategorie` = '{str(category)}', `zutaten` = '{ingredients}', `beschreibung` = '{description}', `bild_Path` = '{bild}' WHERE `rezepte`.`rezept_ID` = {str(id)} AND `rezepte`.`user_id` = '{userId}'"
+            print(query)
             return cur.execute(query) == 1
         finally:
             conn.commit()
@@ -139,23 +141,21 @@ class Database:
             cur.execute(
                 f"INSERT INTO such_Index (begriff, rezept_ID) VALUES ('{key}', '{str(_id)}')")
 
-    # def deleteRecipe(self, username, _id):
-        # TODO ?
-        # self.ensureConnection()
-        # cur = self.__conn.cursor(pymysql.cursors.DictCursor)
-        # userId = self.__userId[username]
-        # cur.execute(f"SELECT bild_Path FROM rezepte WHERE rezept_ID = {str(_id)}")
-        # try:
-        #     img = cur.fetchone()["bild_Path"]
-        #     if (img is not None):
-        #         try:
-        #             os.remove("~http/Rezeptbuch/" + img)
-        #         except FileNotFoundError:
-        #             print("FNF")
-        # except:
-        #     print("caught image exception")
-        # cur.execute("DELETE FROM such_Index WHERE rezept_ID = " + str(_id))
-        # cur.execute("DELETE FROM rezepte WHERE rezept_ID = " + str(_id))
+    def deleteRecipe(self, username, _id, IMAGE_FOLDER):
+        conn, userId = self.connect(username)
+        try:
+            cur = conn.cursor()
+            cur.execute(f"SELECT bild_Path FROM rezepte WHERE rezept_ID = {str(_id)} AND user_id = {str(userId)}")
+            try:
+                img = cur.fetchone()["bild_Path"]
+                if (os.path.exists(IMAGE_FOLDER + img)):
+                    os.remove(IMAGE_FOLDER + img)
+            except Exception as e:
+                print(e)
+            return cur.execute(f"DELETE FROM rezepte WHERE rezept_ID = {str(_id)} AND user_id = {str(userId)}")
+        finally:
+            conn.commit()
+            conn.close()
 
     def getAllCategories(self, username):
         conn, userId = self.connect(username)
