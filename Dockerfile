@@ -7,6 +7,6 @@ RUN apk add --no-cache --virtual .build-deps gcc musl-dev zlib-dev jpeg-dev libs
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
+# COPY . .
+COPY ./start.sh ./start.sh
 CMD [ "./start.sh" ]

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, abort, make_response, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, abort, make_response, redirect, url_for, send_from_directory, send_file
 from flask_restful import Api, Resource, reqparse
 from flask_httpauth import HTTPBasicAuth
 from flask_compress import Compress
@@ -9,6 +9,7 @@ from requests.auth import HTTPDigestAuth
 import requests
 import hashlib
 from PIL import Image
+import io
 
 app = Flask(__name__, static_url_path="")
 api = Api(app)
@@ -184,6 +185,25 @@ class ImageListAPI(Resource):
 class ImageAPI(Resource):
 
     def get(self, name):
+
+        try:
+            w = int(request.args['w'])
+            h = int(request.args['h'])
+        except (KeyError, ValueError):
+            return send_from_directory(IMAGE_FOLDER, name)
+
+        try:
+            im = Image.open(IMAGE_FOLDER + name)
+            im.thumbnail((w, h), Image.ANTIALIAS)
+            output = io.BytesIO()
+            im.save(output, format='JPEG')
+            print(output.getvalue())
+            output.seek(0)
+            return send_file(output, attachment_filename='img.jpg',mimetype='image/jpeg')
+
+        except IOError:
+            abort(404)
+
         return send_from_directory(IMAGE_FOLDER, name)
 
     @auth.login_required
